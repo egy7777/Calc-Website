@@ -114,6 +114,59 @@
             background-color: #4b5563;
         }
         
+        .header-button.active {
+            background-color: #3b82f6;
+        }
+        
+        .conversion-panel {
+            display: none;
+            padding: 15px;
+            background-color: var(--display-bg);
+            border-bottom: 1px solid var(--history-border);
+        }
+        
+        .conversion-panel.active {
+            display: block;
+        }
+        
+        .conversion-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .conversion-select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--history-border);
+            border-radius: 4px;
+            background-color: var(--calculator-bg);
+            color: var(--text-color);
+            font-size: 0.875rem;
+        }
+        
+        .conversion-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--history-border);
+            border-radius: 4px;
+            background-color: var(--calculator-bg);
+            color: var(--text-color);
+            font-size: 1rem;
+            text-align: right;
+        }
+        
+        .conversion-result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: var(--result-bg);
+            border-radius: 4px;
+            text-align: right;
+            font-size: 1.25rem;
+            color: var(--text-color);
+        }
+        
         .display {
             background-color: var(--display-bg);
             padding: 15px;
@@ -288,6 +341,7 @@
                 <div class="header-buttons">
                     <button id="dark-mode-toggle" class="header-button">🌙</button>
                     <button id="mode-toggle" class="header-button">Scientific</button>
+                    <button id="conversion-toggle" class="header-button">Convert</button>
                     <button id="history-toggle" class="header-button">History</button>
                 </div>
             </div>
@@ -295,6 +349,23 @@
             <!-- Display -->
             <div class="display">
                 <div id="result" class="result">0</div>
+            </div>
+            
+            <!-- Conversion panel (hidden by default) -->
+            <div id="conversion-panel" class="conversion-panel">
+                <div class="conversion-controls">
+                    <select id="conversion-type" class="conversion-select">
+                        <option value="length">Length</option>
+                        <option value="weight">Weight</option>
+                        <option value="temperature">Temperature</option>
+                        <option value="area">Area</option>
+                        <option value="volume">Volume</option>
+                    </select>
+                    <select id="from-unit" class="conversion-select"></select>
+                    <select id="to-unit" class="conversion-select"></select>
+                    <input type="number" id="conversion-input" class="conversion-input" placeholder="Enter value">
+                </div>
+                <div id="conversion-result" class="conversion-result">0</div>
             </div>
             
             <!-- History panel (hidden by default) -->
@@ -400,6 +471,59 @@
             const calculatorEl = document.getElementById('calculator');
             const lastRow = document.getElementById('last-row');
 
+            // Conversion functionality
+            const conversionToggle = document.getElementById('conversion-toggle');
+            const conversionPanel = document.getElementById('conversion-panel');
+            const conversionType = document.getElementById('conversion-type');
+            const fromUnit = document.getElementById('from-unit');
+            const toUnit = document.getElementById('to-unit');
+            const conversionInput = document.getElementById('conversion-input');
+            const conversionResult = document.getElementById('conversion-result');
+
+            const conversionUnits = {
+                length: {
+                    meters: 1,
+                    kilometers: 1000,
+                    centimeters: 0.01,
+                    millimeters: 0.001,
+                    miles: 1609.34,
+                    yards: 0.9144,
+                    feet: 0.3048,
+                    inches: 0.0254
+                },
+                weight: {
+                    kilograms: 1,
+                    grams: 0.001,
+                    milligrams: 0.000001,
+                    pounds: 0.453592,
+                    ounces: 0.0283495
+                },
+                temperature: {
+                    celsius: 'C',
+                    fahrenheit: 'F',
+                    kelvin: 'K'
+                },
+                area: {
+                    'square meters': 1,
+                    'square kilometers': 1000000,
+                    'square centimeters': 0.0001,
+                    'square millimeters': 0.000001,
+                    'square miles': 2589988.11,
+                    'square yards': 0.836127,
+                    'square feet': 0.092903,
+                    'square inches': 0.00064516
+                },
+                volume: {
+                    'cubic meters': 1,
+                    'cubic centimeters': 0.000001,
+                    'cubic millimeters': 0.000000001,
+                    liters: 0.001,
+                    milliliters: 0.000001,
+                    'cubic feet': 0.0283168,
+                    'cubic inches': 0.0000163871
+                }
+            };
+
             // Event listeners
             document.querySelectorAll('.button').forEach(button => {
                 button.addEventListener('click', handleButtonClick);
@@ -441,6 +565,8 @@
                     handleMemoryRecall();
                 } else if (action === 'memory-clear') {
                     handleMemoryClear();
+                } else if (action === 'conversion-toggle') {
+                    handleConversionToggle();
                 }
 
                 updateDisplay();
@@ -701,6 +827,86 @@
                 }
             }
 
+            // Conversion functionality
+            function handleConversionToggle() {
+                conversionPanel.classList.toggle('active');
+                conversionToggle.classList.toggle('active');
+                historyPanel.style.display = 'none';
+                historyToggle.classList.remove('active');
+                scientificRows.style.display = 'none';
+                modeToggle.classList.remove('active');
+            }
+
+            function updateUnitSelects() {
+                const type = conversionType.value;
+                const units = Object.keys(conversionUnits[type]);
+                
+                fromUnit.innerHTML = '';
+                toUnit.innerHTML = '';
+                
+                units.forEach(unit => {
+                    fromUnit.add(new Option(unit, unit));
+                    toUnit.add(new Option(unit, unit));
+                });
+                
+                // Set default selections
+                if (type === 'temperature') {
+                    fromUnit.value = 'celsius';
+                    toUnit.value = 'fahrenheit';
+                } else {
+                    fromUnit.value = units[0];
+                    toUnit.value = units[1];
+                }
+                
+                convert();
+            }
+
+            function convert() {
+                const type = conversionType.value;
+                const from = fromUnit.value;
+                const to = toUnit.value;
+                const input = parseFloat(conversionInput.value) || 0;
+                
+                let result;
+                
+                if (type === 'temperature') {
+                    result = convertTemperature(input, from, to);
+                } else {
+                    const fromValue = conversionUnits[type][from];
+                    const toValue = conversionUnits[type][to];
+                    result = (input * fromValue) / toValue;
+                }
+                
+                conversionResult.textContent = result.toFixed(6).replace(/\.?0+$/, '');
+            }
+
+            function convertTemperature(value, from, to) {
+                let celsius;
+                
+                // Convert to Celsius first
+                switch(from) {
+                    case 'celsius':
+                        celsius = value;
+                        break;
+                    case 'fahrenheit':
+                        celsius = (value - 32) * 5/9;
+                        break;
+                    case 'kelvin':
+                        celsius = value - 273.15;
+                        break;
+                }
+                
+                // Convert from Celsius to target unit
+                switch(to) {
+                    case 'celsius':
+                        return celsius;
+                    case 'fahrenheit':
+                        return (celsius * 9/5) + 32;
+                    case 'kelvin':
+                        return celsius + 273.15;
+                }
+            }
+
             // Initialize display
             updateDisplay();
 
@@ -723,6 +929,16 @@
                 darkModeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
                 localStorage.setItem('theme', newTheme);
             });
+
+            // Conversion functionality
+            conversionToggle.addEventListener('click', handleConversionToggle);
+            conversionType.addEventListener('change', updateUnitSelects);
+            fromUnit.addEventListener('change', convert);
+            toUnit.addEventListener('change', convert);
+            conversionInput.addEventListener('input', convert);
+
+            // Initialize conversion units
+            updateUnitSelects();
         });
     </script>
 </body>
